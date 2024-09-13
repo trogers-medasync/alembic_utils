@@ -1,16 +1,44 @@
 import logging
 from contextlib import contextmanager
-from typing import Generator, List
+from typing import TYPE_CHECKING, Generator, List, Tuple
 
 from sqlalchemy import exc as sqla_exc
 from sqlalchemy.orm import Session
 
 from alembic_utils.simulate import simulate_entity
 
+if TYPE_CHECKING:
+    from alembic_utils.replaceable_entity import ReplaceableEntity
+
 logger = logging.getLogger(__name__)
 
 
-def solve_resolution_order(sess: Session, entities):
+def try_resolve_entities(
+    sess: Session,
+    entities_to_resolve: List["ReplaceableEntity"],
+    resolved_entities: List["ReplaceableEntity"],
+) -> Tuple[List["ReplaceableEntity"], List["ReplaceableEntity"]]:
+    resolved_entities = list(resolved_entities)
+    not_resolved = []
+    for entity in entities_to_resolve:
+        try:
+            with simulate_entity(sess, entity, dependencies=resolved_entities):
+                resolved_entities.append(entity)
+        except (sqla_exc.ProgrammingError, sqla_exc.InternalError) as exc:
+            not_resolved.append(entity)
+    if not_resolved == entities_to_resolve:
+        logger.error("Unresolvable entities given: %s", not_resolved)
+        # no new entities were resolved meaning there is an error in one of the entities
+        # not related to missing dependencies. We mark them all as resolved so the process
+        # continues, bubbling up the error to the user later.
+        resolved_entities.extend(not_resolved)
+        not_resolved = []
+    return resolved_entities, not_resolved
+
+
+def solve_resolution_order(
+    sess: Session, entities: List["ReplaceableEntity"]
+) -> List["ReplaceableEntity"]:
     """Solve for an entity resolution order that increases the probability that
     a migration will suceed if, for example, two new views are created and one
     refers to the other
@@ -18,40 +46,13 @@ def solve_resolution_order(sess: Session, entities):
     This strategy will only solve for simple cases
     """
 
-    resolved = []
-
-    # Resolve the entities with 0 dependencies first (faster)
-    logger.info("Resolving entities with no dependencies")
-    for entity in entities:
-        try:
-            with simulate_entity(sess, entity):
-                resolved.append(entity)
-        except (sqla_exc.ProgrammingError, sqla_exc.InternalError) as exc:
-            continue
-
-    # Resolve entities with possible dependencies
     logger.info("Resolving entities with dependencies. This may take a minute")
-    for _ in range(len(entities)):
-        n_resolved = len(resolved)
-
-        for entity in entities:
-            if entity in resolved:
-                continue
-
-            try:
-                with simulate_entity(sess, entity, dependencies=resolved):
-                    resolved.append(entity)
-            except (sqla_exc.ProgrammingError, sqla_exc.InternalError):
-                continue
-
-        if len(resolved) == n_resolved:
-            # No new entities resolved in the last iteration. Exit
-            break
-
-    for entity in entities:
-        if entity not in resolved:
-            resolved.append(entity)
-
+    resolved = []
+    unresolved = list(entities)
+    while unresolved:
+        # Recursively try to create entities, until there are no more entities to resolve
+        resolved, unresolved = try_resolve_entities(sess, unresolved, resolved)
+    logger.info("Resolved order: %s", [e.signature for e in resolved])
     return resolved
 
 

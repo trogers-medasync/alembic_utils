@@ -100,17 +100,16 @@ class ReplaceableEntity:
     ) -> T:  # $Optional[T]:
         """Creates the entity in the database, retrieves its 'rendered' then rolls it back"""
         with simulate_entity(sess, self, dependencies) as sess:
-            # Drop self
-            sess.execute(self.to_sql_statement_drop())
-
-            # collect all remaining entities
-            db_entities: List[T] = sorted(
+            # collect entities
+            all_w_self: List[T] = sorted(
                 self.from_database(sess, schema=self.schema), key=lambda x: x.identity
             )
 
-        with simulate_entity(sess, self, dependencies) as sess:
-            # collect all remaining entities
-            all_w_self: List[T] = sorted(
+            # Drop self
+            sess.execute(self.to_sql_statement_drop())
+
+            # recollect all remaining entities
+            db_entities: List[T] = sorted(
                 self.from_database(sess, schema=self.schema), key=lambda x: x.identity
             )
 
@@ -154,16 +153,19 @@ class ReplaceableEntity:
     _version_to_replace: Optional[T] = None  # type: ignore
 
     def get_required_migration_op(
-        self: T, sess: Session, dependencies: Optional[List["ReplaceableEntity"]] = None
+        self: T,
+        sess: Session,
+        dependencies: Optional[List["ReplaceableEntity"]] = None,
+        db_def: Optional[T] = None,
     ) -> Optional[ReversibleOp]:
         """Get the migration operation required for autogenerate"""
         # All entities in the database for self's schema
         entities_in_database: List[T] = self.from_database(sess, schema=self.schema)
 
-        db_def = self.get_database_definition(sess, dependencies=dependencies)
+        if db_def is None:
+            db_def = self.get_database_definition(sess, dependencies=dependencies)
 
         for x in entities_in_database:
-
             if (db_def.identity, normalize_whitespace(db_def.definition)) == (
                 x.identity,
                 normalize_whitespace(x.definition),
@@ -325,10 +327,11 @@ def compare_registered_entities(
         transaction = connection.begin_nested()
         sess = Session(bind=connection)
         try:
-            maybe_op = entity.get_required_migration_op(sess, dependencies=has_create_or_update_op)
-
-            local_db_def = entity.get_database_definition(
-                sess, dependencies=has_create_or_update_op
+            local_db_def = entity.get_database_definition(sess, dependencies=local_entities)
+            maybe_op = entity.get_required_migration_op(
+                sess,
+                dependencies=local_entities,
+                db_def=local_db_def,  # pass in the db def retrieved earlier since we have it
             )
             local_entities.append(local_db_def)
 
@@ -362,20 +365,17 @@ def compare_registered_entities(
         # Check if anything needs to drop
         subclasses = collect_subclasses(alembic_utils, ReplaceableEntity)
         for entity_class in subclasses:
-
             if entity_class not in registry.allowed_entity_types:
                 continue
 
             # Entities within the schemas that are live
             for schema in observed_schemas:
-
                 db_entities: List[ReplaceableEntity] = entity_class.from_database(
                     sess, schema=schema
                 )
 
                 # Check for functions that were deleted locally
                 for db_entity in db_entities:
-
                     if not include_entity(db_entity, autogen_context, reflected=True):
                         logger.debug(
                             "Ignoring remote entity %s %s due to AutogenContext filters",
