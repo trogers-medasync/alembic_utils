@@ -14,7 +14,6 @@ TEST_DEPENDENT = PGView(schema="public", signature="branch", definition="select 
 
 
 def test_fails_without_defering(sess: Session) -> None:
-
     # Create the original view
     sess.execute(TEST_ROOT_BIGINT.to_sql_statement_create())
     # Create the view that depends on it
@@ -27,7 +26,6 @@ def test_fails_without_defering(sess: Session) -> None:
 
 
 def test_succeeds_when_defering(engine) -> None:
-
     with engine.begin() as connection:
         # Create the original view
         connection.execute(TEST_ROOT_BIGINT.to_sql_statement_create())

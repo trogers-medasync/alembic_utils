@@ -28,7 +28,6 @@ class PGPolicy(OnEntityMixin, ReplaceableEntity):
         result = parse(template, sql.strip(), case_sensitive=False)
 
         if result is not None:
-
             on_entity = result["on_entity"]
             if "." not in on_entity:
                 schema = "public"

@@ -15,13 +15,11 @@ from alembic_utils.replaceable_entity import ReplaceableEntity
 
 
 def test_walk_modules() -> None:
-
     all_modules = [x for x in walk_modules(flupy)]
     assert fluent in all_modules
 
 
 def test_collect_instances() -> None:
-
     instances = collect_instances(alembic_utils, TypeVar)
     assert T in instances
 

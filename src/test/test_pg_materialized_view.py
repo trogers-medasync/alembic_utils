@@ -149,7 +149,6 @@ def test_noop_revision(engine) -> None:
 
 
 def test_drop_revision(engine) -> None:
-
     # Register no functions locally
     register_entities([], schemas=["DEV"], entity_types=[PGMaterializedView])
 

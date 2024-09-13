@@ -38,7 +38,6 @@ def walk_modules(module: ModuleType) -> Generator[ModuleType, None, None]:
         if str(base_path / "__init__.py") in [str(x) for x in files]:
             for module_path in files:
                 if "__init__.py" not in str(module_path):
-
                     # Example: elt.settings
                     module_import_path = str(module_path)[
                         len(str(top_path)) - len(top_module.__name__) :
@@ -57,9 +56,7 @@ def collect_instances(module: ModuleType, class_: Type[T]) -> List[T]:
     found: List[T] = []
 
     for module_ in walk_modules(module):
-
         for _, variable in module_.__dict__.items():
-
             if isinstance(variable, class_):
                 # Ensure variable is not a subclass
                 if variable.__class__ == class_:
@@ -76,7 +73,6 @@ def collect_subclasses(module: ModuleType, class_: Type[T]) -> List[Type[T]]:
     found: List[Type[T]] = []
 
     for module_ in walk_modules(module):
-
         for _, variable in module_.__dict__.items():
             try:
                 if issubclass(variable, class_) and not class_ == variable:

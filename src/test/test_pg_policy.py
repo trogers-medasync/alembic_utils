@@ -55,7 +55,6 @@ def test_unparsable() -> None:
 
 
 def test_parse_without_schema_on_entity() -> None:
-
     sql = "CREATE POLICY mypol on accOunt as PERMISSIVE for SELECT to account_creator using (true) wiTh CHECK (true)"
 
     policy = PGPolicy.from_sql(sql)
@@ -170,7 +169,6 @@ def test_noop_revision(engine, schema_setup) -> None:
 
 
 def test_drop_revision(engine, schema_setup) -> None:
-
     # Register no functions locally
     register_entities([], schemas=["public"], entity_types=[PGPolicy])
 

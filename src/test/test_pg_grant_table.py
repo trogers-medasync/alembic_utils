@@ -42,7 +42,6 @@ def test_repr():
 
 
 def test_bad_input():
-
     with pytest.raises(BadInputException):
         PGGrantTable(
             schema="public",
@@ -155,7 +154,6 @@ def test_noop_revision(sql_setup, engine) -> None:
 
 
 def test_drop_revision(sql_setup, engine) -> None:
-
     # Register no functions locally
     register_entities([], schemas=["public"], entity_types=[PGGrantTable])
 
